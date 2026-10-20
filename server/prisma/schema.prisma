@@ -1,0 +1,103 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// CUSTOMER MODEL
+// ==========================================
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  company   String
+  phone     String
+
+  // User ownership
+  // Nullable temporarily to preserve existing records
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Each user can have their own customers
+  // with unique email addresses
+  @@unique([userId, email])
+  @@index([userId])
+}
+
+// ==========================================
+// LEAD MODEL
+// ==========================================
+
+model Lead {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  company   String
+  phone     String?
+
+  status    String   @default("New")
+  priority  String   @default("Medium")
+  source    String?
+  notes     String?
+
+  // User ownership
+  // Nullable temporarily to preserve existing records
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ==========================================
+// USER MODEL
+// ==========================================
+
+model User {
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          String   @default("USER")
+
+  // Email verification
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+
+  emailVerificationOtp EmailVerificationOtp?
+
+  // Customer and Lead relationships
+  customers Customer[]
+  leads     Lead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// EMAIL VERIFICATION OTP MODEL
+// ==========================================
+
+model EmailVerificationOtp {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique
+  otpHash    String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  lastSentAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  // User relationship
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,32 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+dist/
+build/
+coverage/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Prisma generated client
+/src/generated/prisma/
+server/src/generated/prisma/
+
+# Generated AI tool skill files
+server/.agents/
+server/.claude/
+server/.windsurf/
+
+# Backup files
+*.backup.tsx
+
+# Local files
+.DS_Store
+*.log
