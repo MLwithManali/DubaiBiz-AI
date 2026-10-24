@@ -53,6 +53,7 @@ interface AuthContextValue {
   login: (user: AuthUser, token: string) => void;
   logout: () => void;
   retryVerification: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 interface AuthState {
@@ -81,9 +82,7 @@ const AuthContext = createContext<
 // USER VALIDATION
 // ==========================================
 
-function isValidUser(
-  value: unknown
-): value is AuthUser {
+function isValidUser(value: unknown): value is AuthUser {
   if (
     typeof value !== "object" ||
     value === null ||
@@ -109,13 +108,9 @@ function isValidUser(
 
 // ==========================================
 // JWT EXPIRATION
-// Client-side decoding is NOT signature
-// verification. The backend verifies JWTs.
 // ==========================================
 
-function getTokenExpiration(
-  token: string
-): number | null {
+function getTokenExpiration(token: string): number | null {
   try {
     const parts = token.split(".");
 
@@ -132,9 +127,7 @@ function getTokenExpiration(
       "="
     );
 
-    const payload: unknown = JSON.parse(
-      atob(padded)
-    );
+    const payload: unknown = JSON.parse(atob(padded));
 
     if (
       typeof payload !== "object" ||
@@ -165,10 +158,7 @@ function getTokenExpiration(
 function isTokenExpired(token: string): boolean {
   const expiration = getTokenExpiration(token);
 
-  return (
-    expiration === null ||
-    Date.now() >= expiration
-  );
+  return expiration === null || Date.now() >= expiration;
 }
 
 // ==========================================
@@ -180,14 +170,8 @@ function clearStoredSession(): void {
   sessionStorage.removeItem(USER_KEY);
 }
 
-function saveStoredSession(
-  session: AuthSession
-): void {
-  sessionStorage.setItem(
-    TOKEN_KEY,
-    session.token
-  );
-
+function saveStoredSession(session: AuthSession): void {
+  sessionStorage.setItem(TOKEN_KEY, session.token);
   sessionStorage.setItem(
     USER_KEY,
     JSON.stringify(session.user)
@@ -196,21 +180,15 @@ function saveStoredSession(
 
 function readStoredSession(): AuthSession | null {
   try {
-    const token = sessionStorage.getItem(
-      TOKEN_KEY
-    );
-
-    const userJson = sessionStorage.getItem(
-      USER_KEY
-    );
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    const userJson = sessionStorage.getItem(USER_KEY);
 
     if (!token || !userJson) {
       clearStoredSession();
       return null;
     }
 
-    const parsedUser: unknown =
-      JSON.parse(userJson);
+    const parsedUser: unknown = JSON.parse(userJson);
 
     if (
       !isValidUser(parsedUser) ||
@@ -280,9 +258,6 @@ async function fetchCurrentUser(
     }
   );
 
-  // Only an explicit authentication rejection
-  // should immediately clear the session.
-
   if (
     response.status === 401 ||
     response.status === 403
@@ -327,9 +302,6 @@ export function AuthProvider({
   const [verificationVersion, setVerificationVersion] =
     useState(0);
 
-  // Identifies the latest login/logout/session
-  // transition. Prevents stale API responses
-  // from replacing a newer session.
   const sessionVersionRef = useRef(0);
 
   // ========================================
@@ -474,9 +446,7 @@ export function AuthProvider({
         }
 
         setAuth((current) => {
-          if (
-            current.session?.token !== token
-          ) {
+          if (current.session?.token !== token) {
             return current;
           }
 
@@ -514,9 +484,7 @@ export function AuthProvider({
     }
 
     const token = auth.session.token;
-
-    const expiration =
-      getTokenExpiration(token);
+    const expiration = getTokenExpiration(token);
 
     if (expiration === null) {
       logout();
@@ -542,6 +510,73 @@ export function AuthProvider({
   }, [auth.session, logout]);
 
   // ========================================
+  // REFRESH CURRENT USER
+  // ========================================
+
+  const refreshUser = useCallback(
+    async (): Promise<void> => {
+      const currentSession = auth.session;
+
+      if (!currentSession) {
+        throw new Error("Please log in again.");
+      }
+
+      if (isTokenExpired(currentSession.token)) {
+        logout();
+        throw new InvalidSessionError();
+      }
+
+      const version = sessionVersionRef.current;
+
+      let verifiedUser: AuthUser;
+
+      try {
+        verifiedUser = await fetchCurrentUser(
+          currentSession.token,
+          new AbortController().signal
+        );
+      } catch (error) {
+        if (
+          error instanceof InvalidSessionError &&
+          sessionVersionRef.current === version
+        ) {
+          logout();
+        }
+
+        throw error;
+      }
+
+      if (sessionVersionRef.current !== version) {
+        return;
+      }
+
+      const updatedSession: AuthSession = {
+        token: currentSession.token,
+        user: verifiedUser,
+      };
+
+      // Only update the currently active session.
+      setAuth((current) => {
+        if (
+          current.session?.token !== currentSession.token
+        ) {
+          return current;
+        }
+
+        saveStoredSession(updatedSession);
+
+        return {
+          ...current,
+          session: updatedSession,
+          status: "authenticated",
+          error: null,
+        };
+      });
+    },
+    [auth.session, logout]
+  );
+
+  // ========================================
   // CONTEXT VALUE
   // ========================================
 
@@ -563,6 +598,7 @@ export function AuthProvider({
       login,
       logout,
       retryVerification,
+      refreshUser,
     }),
     [
       auth,
@@ -570,6 +606,7 @@ export function AuthProvider({
       login,
       logout,
       retryVerification,
+      refreshUser,
     ]
   );
 

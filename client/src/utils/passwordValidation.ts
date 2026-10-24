@@ -18,8 +18,7 @@ export function validatePassword(
   const uppercase = /[A-Z]/.test(password);
   const lowercase = /[a-z]/.test(password);
   const number = /[0-9]/.test(password);
-  const specialCharacter =
-    /[^A-Za-z0-9\s]/.test(password);
+  const specialCharacter = /[^A-Za-z0-9\s]/.test(password);
   const noSpaces = !/\s/.test(password);
 
   return {
@@ -45,8 +44,5 @@ export function passwordsMatch(
   password: string,
   confirmPassword: string
 ): boolean {
-  return (
-    password.length > 0 &&
-    password === confirmPassword
-  );
+  return password.length > 0 && password === confirmPassword;
 }

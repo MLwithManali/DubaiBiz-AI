@@ -8,6 +8,8 @@ import {
   verifyEmail,
   resendOtp,
   getCurrentUser,
+  updateProfile,
+  changePassword,
 } from "../controllers/authController.js";
 
 import { requireAuth } from "../middleware/authMiddleware.js";
@@ -18,7 +20,6 @@ const router = Router();
 // RATE LIMITING
 // ==========================================
 
-// Login: maximum 10 requests per 15 minutes.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -26,12 +27,10 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    message:
-      "Too many login attempts. Please try again later.",
+    message: "Too many login attempts. Please try again later.",
   },
 });
 
-// Registration: maximum 5 requests per hour.
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
@@ -39,12 +38,10 @@ const registerLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    message:
-      "Too many registration attempts. Please try again later.",
+    message: "Too many registration attempts. Please try again later.",
   },
 });
 
-// OTP verification: maximum 10 requests per 15 minutes.
 const verifyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -52,12 +49,10 @@ const verifyLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    message:
-      "Too many verification attempts. Please try again later.",
+    message: "Too many verification attempts. Please try again later.",
   },
 });
 
-// OTP resend: maximum 5 requests per 15 minutes.
 const resendLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -65,8 +60,19 @@ const resendLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
+    message: "Too many resend requests. Please try again later.",
+  },
+});
+
+const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
     message:
-      "Too many resend requests. Please try again later.",
+      "Too many password change attempts. Please try again later.",
   },
 });
 
@@ -106,6 +112,19 @@ router.get(
   "/me",
   requireAuth,
   getCurrentUser
+);
+
+router.patch(
+  "/profile",
+  requireAuth,
+  updateProfile
+);
+
+router.patch(
+  "/change-password",
+  requireAuth,
+  changePasswordLimiter,
+  changePassword
 );
 
 export default router;
